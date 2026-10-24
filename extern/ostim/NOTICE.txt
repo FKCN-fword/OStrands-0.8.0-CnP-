@@ -1,0 +1,3 @@
+PluginInterface/ is OStim Standalone's public plugin interface, copied unchanged from
+https://github.com/VersuchDrei/OStimNG (skse/src/PluginInterface, commit 3954683).
+OStim is licensed under the GNU GPL v3; see ../../LICENSE.
