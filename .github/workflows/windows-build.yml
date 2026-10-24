@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 90
     env:
       VCPKG_ROOT: ${{ github.workspace }}\vcpkg
-      VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}\vcpkg-binary-cache
+      VCPKG_DEFAULT_BINARY_CACHE: "${{ github.workspace }}\\.vcpkg-binary-cache"
       VCPKG_DISABLE_METRICS: 1
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_CACHE_SIZE: 5G
@@ -34,7 +34,7 @@ jobs:
       - name: Cache vcpkg binary packages
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}\vcpkg-binary-cache
+          path: .vcpkg-binary-cache
           key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
           restore-keys: |
             ${{ runner.os }}-vcpkg-
