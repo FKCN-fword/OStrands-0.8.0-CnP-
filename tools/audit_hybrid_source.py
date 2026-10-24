@@ -43,7 +43,7 @@ checks.append(("fluid generation does not require a human actor", bool(climax_se
 checks.append(("host lists are only made when domains need creation", fluid.count("Build the host list only if a new fluid domain is required") == 2))
 checks.append(("Korean alignment settings remain", "위치 보정" in menu and "BuildAlignment" in menu))
 checks.append(("hybrid build marker is logged", "OStrands hybrid source" in main))
-checks.append(("GitHub workflow builds and uploads DLL-only artifact", "Build-0.8-Creature-PPlus-KO.cmd" in build and "0_OStrands.dll" in build and "OStrands-0.8.0-Creature-PPlus-Hybrid-DLL-ONLY-MO2.zip" in build))
+checks.append(("GitHub workflow builds and uploads one MO2-ready DLL artifact", "run: call build.cmd" in build and "build\\release\\0_OStrands.dll" in build and "SKSE\\Plugins" in build and "name: OStrands-0.8.0-Creature-PPlus-Hybrid-MO2" in build and "path: artifact/**" in build and "actions/upload-artifact@v4" in build))
 
 failed = [name for name, passed in checks if not passed]
 for name, passed in checks:
