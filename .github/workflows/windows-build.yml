@@ -1,0 +1,98 @@
+name: OStrands 0.8.0 Hybrid Windows build
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\.vcpkg-binary-cache
+      VCPKG_DISABLE_METRICS: 1
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_SIZE: 5G
+
+    steps:
+      - name: Check out hybrid project
+        uses: actions/checkout@v4
+
+      - name: Check out pinned vcpkg baseline
+        uses: actions/checkout@v4
+        with:
+          repository: microsoft/vcpkg
+          ref: 00c5775211f45cd08b37fce0484b4cb940e422ab
+          path: vcpkg
+          fetch-depth: 1
+
+      - name: Cache vcpkg binary packages
+        uses: actions/cache@v4
+        with:
+          path: .vcpkg-binary-cache
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
+      - name: Check out CommonLibSSE-NG v12.1.0
+        uses: actions/checkout@v4
+        with:
+          repository: alandtse/CommonLibSSE-NG
+          ref: v12.1.0
+          path: extern/CommonLibSSE-NG
+          fetch-depth: 1
+
+      - name: Set up Python and Ninja
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ninja
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check ninja
+
+      - name: Enable sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: v0.16.0
+
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: '& "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics'
+
+      - name: Run source audit
+        shell: pwsh
+        run: python tools/audit_hybrid_source.py
+
+      - name: Build DLL and create DLL-only MO2 ZIP
+        shell: cmd
+        run: call Build-0.8-Creature-PPlus-KO.cmd
+
+      - name: Show cache statistics
+        if: always()
+        shell: pwsh
+        run: sccache --show-stats
+
+      - name: Verify build outputs
+        shell: pwsh
+        run: |
+          $dll = 'build/release/0_OStrands.dll'
+          $zip = 'OStrands-0.8.0-Creature-PPlus-Hybrid-DLL-ONLY-MO2.zip'
+          if (!(Test-Path $dll)) { throw "DLL output missing: $dll" }
+          if (!(Test-Path $zip)) { throw "DLL-only package missing: $zip" }
+          Get-Item $dll, $zip | Select-Object FullName, Length
+
+      - name: Upload hybrid DLL artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OStrands-0.8.0-Creature-PPlus-Hybrid-DLL
+          path: |
+            build/release/0_OStrands.dll
+            OStrands-0.8.0-Creature-PPlus-Hybrid-DLL-ONLY-MO2.zip
+          if-no-files-found: error
+          retention-days: 14
