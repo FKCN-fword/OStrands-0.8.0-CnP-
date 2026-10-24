@@ -39,6 +39,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-vcpkg-
 
+      - name: Ensure vcpkg binary cache directory exists
+        shell: pwsh
+        run: |
+          $cache = $env:VCPKG_DEFAULT_BINARY_CACHE
+          if ([string]::IsNullOrWhiteSpace($cache)) {
+            throw 'VCPKG_DEFAULT_BINARY_CACHE is empty.'
+          }
+          New-Item -ItemType Directory -Path $cache -Force | Out-Null
+          if (-not (Test-Path -LiteralPath $cache -PathType Container)) {
+            throw "vcpkg binary cache directory was not created: $cache"
+          }
+          Write-Host "VCPKG_DEFAULT_BINARY_CACHE=$cache"
+
       - name: Check out CommonLibSSE-NG v12.1.0
         uses: actions/checkout@v4
         with:
@@ -52,9 +65,17 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Ninja
+      - name: Install and verify Ninja
         shell: pwsh
-        run: python -m pip install --disable-pip-version-check ninja
+        run: |
+          python -m pip install --disable-pip-version-check ninja
+          $scripts = python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+          $ninja = Join-Path $scripts 'ninja.exe'
+          if (-not (Test-Path -LiteralPath $ninja -PathType Leaf)) {
+            throw "ninja.exe was not found at: $ninja"
+          }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $scripts
+          & $ninja --version
 
       - name: Enable sccache
         uses: mozilla-actions/sccache-action@v0.0.11
