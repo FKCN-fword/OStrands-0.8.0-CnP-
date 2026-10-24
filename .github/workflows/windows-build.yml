@@ -1,4 +1,4 @@
-name: OStrands 0.8.0 Hybrid Windows build
+name: OStrands 0.8.0 P+ Creature Hybrid — Windows build
 
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 90
     env:
       VCPKG_ROOT: ${{ github.workspace }}\vcpkg
-      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\.vcpkg-binary-cache
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}\vcpkg-binary-cache
       VCPKG_DISABLE_METRICS: 1
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_CACHE_SIZE: 5G
@@ -34,12 +34,12 @@ jobs:
       - name: Cache vcpkg binary packages
         uses: actions/cache@v4
         with:
-          path: .vcpkg-binary-cache
+          path: ${{ runner.temp }}\vcpkg-binary-cache
           key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
           restore-keys: |
             ${{ runner.os }}-vcpkg-
 
-      - name: Ensure vcpkg binary cache directory exists
+      - name: Create and verify vcpkg binary cache directory
         shell: pwsh
         run: |
           $cache = $env:VCPKG_DEFAULT_BINARY_CACHE
@@ -86,34 +86,46 @@ jobs:
         shell: pwsh
         run: '& "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics'
 
-      - name: Run source audit
+      - name: Run hybrid source audit
         shell: pwsh
         run: python tools/audit_hybrid_source.py
 
-      - name: Build DLL and create DLL-only MO2 ZIP
+      - name: Compile DLL
         shell: cmd
-        run: call Build-0.8-Creature-PPlus-KO.cmd
+        run: call build.cmd
 
-      - name: Show cache statistics
+      - name: Stage one MO2-ready artifact
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dll = Join-Path $env:GITHUB_WORKSPACE 'build\release\0_OStrands.dll'
+          if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) {
+            throw "DLL output missing: $dll"
+          }
+
+          $stage = Join-Path $env:GITHUB_WORKSPACE 'artifact'
+          if (Test-Path -LiteralPath $stage) {
+            Remove-Item -LiteralPath $stage -Recurse -Force
+          }
+          $dest = Join-Path $stage 'SKSE\Plugins'
+          New-Item -ItemType Directory -Path $dest -Force | Out-Null
+          Copy-Item -LiteralPath $dll -Destination (Join-Path $dest '0_OStrands.dll')
+
+          $files = @(Get-ChildItem -LiteralPath $stage -File -Recurse)
+          if ($files.Count -ne 1 -or $files[0].Name -ne '0_OStrands.dll') {
+            throw "Expected exactly one staged file (0_OStrands.dll), found $($files.Count)."
+          }
+          Get-ChildItem -LiteralPath $stage -File -Recurse | Select-Object FullName, Length
+
+      - name: Show compiler cache statistics
         if: always()
         shell: pwsh
         run: sccache --show-stats
 
-      - name: Verify build outputs
-        shell: pwsh
-        run: |
-          $dll = 'build/release/0_OStrands.dll'
-          $zip = 'OStrands-0.8.0-Creature-PPlus-Hybrid-DLL-ONLY-MO2.zip'
-          if (!(Test-Path $dll)) { throw "DLL output missing: $dll" }
-          if (!(Test-Path $zip)) { throw "DLL-only package missing: $zip" }
-          Get-Item $dll, $zip | Select-Object FullName, Length
-
-      - name: Upload hybrid DLL artifacts
+      - name: Upload the single MO2-installable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OStrands-0.8.0-Creature-PPlus-Hybrid-DLL
-          path: |
-            build/release/0_OStrands.dll
-            OStrands-0.8.0-Creature-PPlus-Hybrid-DLL-ONLY-MO2.zip
+          name: OStrands-0.8.0-Creature-PPlus-Hybrid-MO2
+          path: artifact/**
           if-no-files-found: error
           retention-days: 14
